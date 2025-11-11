@@ -1,0 +1,7 @@
+/* You can add global styles to this file, and also import other style files */
+
+:host { display:block; min-height:100vh; background:linear-gradient(180deg,#f7f9fc,#ffffff); }
+.app-shell { padding:12px 16px; max-width:1200px; margin:0 auto; }
+.topbar { display:flex; justify-content:space-between; align-items:center; padding:10px 0; }
+.brand { font-weight:700; font-size:1.1rem; color:#0f172a; }
+.hint { color:#64748b; font-size:0.9rem; }
