@@ -1,0 +1,124 @@
+// Configuration template for market.ts
+// Copy this file to src/market.ts and configure your settings
+
+export const MarketConfig = {
+  // API Endpoints - Configure your local or remote API
+  endpoints: {
+    base: 'http://localhost:3000', // Change to your API server URL
+    list: '/currency/list',
+    detail: '/currency',
+    health: '/health'
+  },
+  
+  // API Settings
+  settings: {
+    refreshInterval: 5000, // Refresh interval in milliseconds
+    maxRetries: 3, // Maximum number of retry attempts
+    timeout: 10000, // Request timeout in milliseconds
+    format: 'json' // Response format: json, xml, csv
+  },
+  
+  // External API (backup/fallback)
+  external: {
+    base: 'https://api.coingecko.com/api/v3',
+    endpoints: {
+      markets: '/coins/markets',
+      coinDetail: '/coins',
+      simplePrice: '/simple/price'
+    }
+  },
+  
+  // Feature flags
+  features: {
+    useLocalAPI: true, // Set to false to use external API only
+    enableCache: true,
+    enablePolling: true,
+    showDebugInfo: false // Set to true for debugging
+  }
+};
+
+// Helper function to get full URL
+export function getAPIUrl(endpoint: 'list' | 'detail' | 'health', params?: Record<string, string>): string {
+  const config = MarketConfig.endpoints;
+  let url = `${config.base}${config[endpoint]}`;
+  
+  if (params) {
+    const queryString = new URLSearchParams(params).toString();
+    url += `?${queryString}`;
+  }
+  
+  return url;
+}
+
+// Helper function for fetch with retry
+export async function fetchWithRetry(url: string, options: RequestInit = {}, retries = MarketConfig.settings.maxRetries): Promise<Response> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), MarketConfig.settings.timeout);
+    
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeout);
+    
+    if (!response.ok && retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return fetchWithRetry(url, options, retries - 1);
+    }
+    
+    return response;
+  } catch (error) {
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return fetchWithRetry(url, options, retries - 1);
+    }
+    throw error;
+  }
+}
+
+// API Methods
+export const MarketAPI = {
+  // Get currency list
+  async getCurrencyList(format: 'json' | 'xml' | 'csv' = 'json') {
+    const url = getAPIUrl('list', { format });
+    const response = await fetchWithRetry(url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch currency list: ${response.statusText}`);
+    }
+    
+    if (format === 'json') {
+      return response.json();
+    } else if (format === 'csv') {
+      return response.text();
+    } else {
+      return response.text();
+    }
+  },
+  
+  // Get specific currency details
+  async getCurrencyDetail(symbol: string) {
+    const url = `${MarketConfig.endpoints.base}${MarketConfig.endpoints.detail}/${symbol}`;
+    const response = await fetchWithRetry(url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch currency detail: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
+  
+  // Health check
+  async checkHealth() {
+    const url = getAPIUrl('health');
+    const response = await fetchWithRetry(url);
+    
+    if (!response.ok) {
+      throw new Error(`Health check failed: ${response.statusText}`);
+    }
+    
+    return response.json();
+  }
+};
